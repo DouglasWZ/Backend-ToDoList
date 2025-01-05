@@ -1,3 +1,5 @@
+const generarJTW = require("../helpers/generarJWT")
+
 const bcrypt = require("bcryptjs");
 const sql = require("mssql");
 const {dbConexion} = require("../DB/config");
@@ -113,14 +115,21 @@ const Autenticar = async (req,res) =>{
     // Comprobar la contraseña
     const esContraseñaCorrecta = await bcrypt.compare(contraseña, usuario.contraseña)
 
-    if(!esContraseñaCorrecta){
+    if(esContraseñaCorrecta){
+        res.json({token: generarJTW(usuario.id)})
+    } else {
         const error = new Error("Contraseña incorrecta");
         return res.status(401).json({msg: error.message});
-    }
+    } 
+}
+
+const perfil = (req, res) =>{
+    res.status(200).json({msg: "Desde Perfil..."})
 }
 
 module.exports = {
     registrarUsuario,
     confirmar,
-    Autenticar
+    Autenticar,
+    perfil
 }
