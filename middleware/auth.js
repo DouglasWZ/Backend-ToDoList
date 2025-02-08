@@ -30,7 +30,6 @@ const checkAuth = async (req, res, next) => {
 
             // Obtener el usuario encontrado
             req.usuario = resultado.recordset[0]
-            console.log(req.usuario)
             return next();
 
 

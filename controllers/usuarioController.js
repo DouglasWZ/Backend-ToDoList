@@ -124,12 +124,110 @@ const Autenticar = async (req,res) =>{
 }
 
 const perfil = (req, res) =>{
-    res.status(200).json({msg: "Desde Perfil..."})
+    
+    const {usuario} = req
+
+    res.json({perfil: usuario})
+}
+
+const olvidePassword = async (req, res) =>{
+
+    const {correo} = req.body
+    
+
+    /* Buscar el correo en la BD */
+
+    // Crear la conexión
+    const pool = await dbConexion(); 
+
+    const resultado = await pool.request()
+        .input("correo", sql.NVarChar(255), correo)
+        .query('SELECT * FROM Gestion.Usuario Where correo = @correo')
+
+    // Verifica si el usuario no fue encontrado
+    if(resultado.recordset.length === 0){
+        return res.status(404).json({message: 'Usuario no encontrado'});
+    }
+
+    //Obtener el usuario encontrado mediante el correo
+    existeUsuario = resultado.recordset[0];
+
+    //Actualiza el registro en la BD
+    try {
+        const token = generarToken();
+        /* const usuarioActualizadoToken =  */await pool.request() // Revisar esta linea si sirve o no
+            .input("token", sql.NVarChar(255), token)
+            .input("correo", sql.NVarChar(255), correo)
+            .query('UPDATE Gestion.Usuario SET tokenVerificacion = @token WHERE correo = @correo')
+        
+        res.json({msg: 'Hemos enviado un correo con las instrucciones'})
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+const comprobarToken = async (req, res) =>{
+    const {token} = req.params
+    
+    const pool = await dbConexion()
+    const tokenValido = await pool.request()
+        .input("token", sql.NVarChar(255), token)
+        .query('SELECT * FROM Gestion.Usuario WHERE tokenVerificacion = @token')
+    
+    // Verificar si el token es valido entonces que el usuario exista
+    /*En este caso no se pone un Try Catch porque no se hace ningun cambio en la BD solo es para validar si fue encontrado o no*/
+    if(tokenValido.recordset.length === 0){
+        res.status(404).json({msg: 'Usuario no encontrado'})
+    }else{
+        return res.status(200).json({msg: 'Token válido y el usuario existe'})
+    }
+}
+
+const nuevoPassword = async (req, res) =>{
+    const {token} = req.params
+    const {password} = req.body
+
+     // Validar que se hayan enviado el token y la nueva contraseña
+     if (!token || !password) {
+        return res.status(400).json({ msg: "Token y contraseña son requeridos." });
+    }
+
+    const pool = await dbConexion();
+    const usuario = await pool.request()
+        .input("token", sql.NVarChar(255), token)
+        .query('SELECT * FROM Gestion.Usuario WHERE tokenVerificacion = @token')
+
+    if(usuario.recordset.length === 0){
+        const error = new Error('Hubo un error')
+        res.status(400).json({msg: error.message})
+    }
+
+   try {
+
+    // Encriptar la contraseña
+    const salt = bcrypt.genSaltSync();
+    const nuevaContraEncriptada = bcrypt.hashSync(password, salt);
+
+    // Actualizar la contraseña y el token del usuario
+    await pool.request()
+        .input("nuevaContraEncriptada", sql.NVarChar(255),nuevaContraEncriptada)
+        .input("token", sql.NVarChar(255), token)
+        .query('UPDATE Gestion.Usuario SET contraseña = @nuevaContraEncriptada, tokenVerificacion = NULL WHERE tokenVerificacion = @token')
+
+        res.status(200).json({msg: 'Contraseña Actualizada Correntamente'})
+
+    } catch (error) {
+        console.log(error)
+    }
+
 }
 
 module.exports = {
     registrarUsuario,
     confirmar,
     Autenticar,
-    perfil
+    perfil, 
+    olvidePassword,
+    comprobarToken,
+    nuevoPassword
 }
